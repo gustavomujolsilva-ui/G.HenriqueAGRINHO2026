@@ -1,1 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guerra de Hortifrúti: 1v1</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #222;
+            color: #fff;
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            border: 4px solid #444;
+            background-color: #111;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #instrucoes {
+            margin-top: 15px;
+            display: flex;
+            gap: 40px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
 
+    <h1>Guerra de Hortifrúti 🍅🥦</h1>
+    <canvas id="gameCanvas" width="800" height="500"></canvas>
+
+    <div id="instrucoes">
+        <div>
+            <strong>Jogador 1 (Verde):</strong> W, A, S, D | <strong>Atirar:</strong> ESPAÇO
+        </div>
+        <div>
+            <strong>Jogador 2 (Azul):</strong> Setas | <strong>Atirar:</strong> ENTER
+        </div>
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Pool de armas de frutas e vegetais com atributos únicos
+const ARMAS_FRUTAS = [
+    { nome: "Tomate", emoji: "🍅", dano: 10, velocidade: 7, cor: "#ff4d4d" },
+    { nome: "Brócolis", emoji: "🥦", dano: 15, velocidade: 5, cor: "#2ecc71" },
+    { nome: "Melancia", emoji: "🍉", dano: 30, velocidade: 3, cor: "#e74c3c" },
+    { nome: "Banana", emoji: "🍌", dano: 8, velocidade: 10, cor: "#f1c40f" },
+    { nome: "Beringela", emoji: "🍆", dano: 20, velocidade: 4, cor: "#9b59b6" },
+    { nome: "Pimenta", emoji: "🌶️", dano: 25, velocidade: 8, cor: "#e67e22" }
+];
+
+// Configuração dos Jogadores
+const p1 = {
+    x: 100, y: 250, r: 20, cor: '#2ecc71', vida: 100, velocidade: 4,
+    armaAtual: ARMAS_FRUTAS[0], ultimaDirecao: 1 // 1 = direita, -1 = esquerda
+};
+
+const p2 = {
+    x: 700, y: 250, r: 20, cor: '#3498db', vida: 100, velocidade: 4,
+    armaAtual: ARMAS_FRUTAS[0], ultimaDirecao: -1
+};
+
+const projeteis = [];
+const teclas = {};
+
+// Captura de teclado
+window.addEventListener('keydown', e => { teclas[e.code] = true; });
+window.addEventListener('keyup', e => { teclas[e.code] = false; });
+
+// Função para disparar tiro e sortear a PRÓXIMA arma
+function atirar(jogador, direcao) {
+    projeteis.push({
+        x: jogador.x,
+        y: jogador.y,
+        vx: direcao * jogador.armaAtual.velocidade,
+        arma: jogador.armaAtual,
+        dono: jogador
+    });
+    // Sorteia uma nova arma para o próximo tiro
+    jogador.armaAtual = ARMAS_FRUTAS[Math.floor(Math.random() * ARMAS_FRUTAS.length)];
+}
+
+// Escutador específico para cliques únicos de tiro
+window.addEventListener('keydown', e => {
+    if (p1.vida > 0 && p2.vida > 0) {
+        if (e.code === 'Space') atirar(p1, p1.ultimaDirecao);
+        if (e.code === 'Enter') atirar(p2, p2.ultimaDirecao);
+    }
+});
+
+// Atualização da lógica do jogo
+function atualizar() {
+    if (p1.vida <= 0 || p2.vida <= 0) return; // Fim de jogo
+
+    // Controles Jogador 1 (WASD)
+    if (teclas['KeyW'] && p1.y > p1.r) p1.y -= p1.velocidade;
+    if (teclas['KeyS'] && p1.y < canvas.height - p1.r) p1.y += p1.velocidade;
+    if (teclas['KeyA'] && p1.x > p1.r) { p1.x -= p1.velocidade; p1.ultimaDirecao = -1; }
+    if (teclas['KeyD'] && p1.x < canvas.width/2 - p1.r) { p1.x += p1.velocidade; p1.ultimaDirecao = 1; }
+
+    // Controles Jogador 2 (Setas)
+    if (teclas['ArrowUp'] && p2.y > p2.r) p2.y -= p2.velocidade;
+    if (teclas['ArrowDown'] && p2.y < canvas.height - p2.r) p2.y += p2.velocidade;
+    if (teclas['ArrowLeft'] && p2.x > canvas.width/2 + p2.r) { p2.x -= p2.velocidade; p2.ultimaDirecao = -1; }
+    if (teclas['ArrowRight'] && p2.x < canvas.width - p2.r) { p2.x += p2.velocidade; p2.ultimaDirecao = 1; }
+
+    // Atualizar Projéteis
+    for (let i = projeteis.length - 1; i >= 0; i--) {
+        let proj = projeteis[i];
+        proj.x += proj.vx;
+
+        // Alvo do tiro
+        let alvo = (proj.dono === p1) ? p2 : p1;
+
+        // Verificar colisão usando distância matemática
+        let dist = Math.hypot(proj.x - alvo.x, proj.y - alvo.y);
+        if (dist < alvo.r + 15) { // 15 é o tamanho aproximado do emoji
+            alvo.vida -= proj.arma.dono;
+            if (alvo.vida < 0) alvo.vida = 0;
+            projeteis.splice(i, 1);
+            continue;
+        }
+
+        // Remover se sair da tela
+        if (proj.x < 0 || proj.x > canvas.width) {
+            projeteis.splice(i, 1);
+        }
+    }
+}
+
+// Renderização dos elementos na tela
+function desenhar() {
+    // Limpar tela
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Linha divisória do meio do campo
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 10]);
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, 0);
+    ctx.lineTo(canvas.width / 2, canvas.height);
+    ctx.stroke();
+    ctx.setLineDash([]); // Reseta estilo de linha
+
+    // Desenhar Jogador 1
+    if (p1.vida > 0) {
+        ctx.fillStyle = p1.cor;
+        ctx.beginPath();
+        ctx.arc(p1.x, p1.y, p1.r, 0, Math.PI * 2);
+        ctx.fill();
+        // Mostrar próxima arma guardada do P1
+        ctx.font = '16px sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`Próximo: ${p1.armaAtual.emoji}`, p1.x - 35, p1.y - 30);
+    }
+
+    // Desenhar Jogador 2
+    if (p2.vida > 0) {
+        ctx.fillStyle = p2.cor;
+        ctx.beginPath();
+        ctx.arc(p2.x, p2.y, p2.r, 0, Math.PI * 2);
+        ctx.fill();
+        // Mostrar próxima arma guardada do P2
+        ctx.font = '16px sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(`Próximo: ${p2.armaAtual.emoji}`, p2.x - 35, p2.y - 30);
+    }
+
+    // Desenhar Projéteis (Frutas/Vegetais)
+    ctx.font = '24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    projeteis.forEach(proj => {
+        ctx.fillText(proj.arma.emoji, proj.x, proj.y);
+    });
+
+    // Interface (Interface de Vida - HUD)
+    ctx.font = '20px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#2ecc71';
+    ctx.fillText(`P1: ${p1.vida}%`, 20, 30);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#3498db';
+    ctx.fillText(`P2: ${p2.vida}%`, canvas.width - 20, 30);
+
+    // Tela de Fim de Jogo
+    if (p1.vida <= 0 || p2.vida <= 0) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.font = '40px sans-serif';
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'center';
+        
+        let vencedor = p1.vida > 0 ? "Jogador 1 (Verde)" : "Jogador 2 (Azul)";
+        ctx.fillText(`${vencedor} Venceu!`, canvas.width / 2, canvas.height / 2);
+        ctx.font = '20px sans-serif';
+        ctx.fillText("Atualize a página para jogar novamente", canvas.width / 2, canvas.height / 2 + 50);
+    }
+}
+
+// Loop Principal do Jogo
+function gameLoop() {
+    atualizar();
+    desenhar();
+    requestAnimationFrame(gameLoop);
+}
+
+// Iniciar o jogo
+gameLoop();
+</script>
+
+</body>
+</html>
